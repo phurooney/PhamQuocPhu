@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mô Phỏng Sắc Ký Cột</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      min-height: 100vh;
+      color: #e2e8f0;
+    }
+
+    /* ===== COLUMN STYLES ===== */
+    #column-wrapper {
+      position: relative;
+      width: 120px;
+      margin: 0 auto;
+    }
+
+    #column-svg {
+      width: 120px;
+      height: 480px;
+      display: block;
+    }
+
+    /* ===== CANVAS ===== */
+    #chromatography-canvas {
+      border-radius: 8px;
+      display: block;
+    }
+
+    /* ===== DETECTOR CHART ===== */
+    #detector-canvas {
+      border-radius: 6px;
+      background: #0f172a;
+      display: block;
+    }
+
+    /* ===== CONTROLS ===== */
+    .slider-container { position: relative; }
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: #334155;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+      box-shadow: 0 0 6px #38bdf888;
+    }
+
+    .compound-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+
+    .glow-blue { box-shadow: 0 0 12px #38bdf855; }
+    .glow-green { box-shadow: 0 0 12px #4ade8055; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+    .card {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0ea5e9, #6366f1);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 22px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.02em;
+    }
+    .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); box-shadow: 0 4px 16px #0ea5e944; }
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 22px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-danger:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    .btn-secondary {
+      background: rgba(51, 65, 85, 0.8);
+      color: #94a3b8;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 10px 22px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover { background: #334155; color: #e2e8f0; }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      animation: pulse-dot 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .info-tooltip {
+      position: relative;
+      cursor: help;
+    }
+    .info-tooltip:hover .tooltip-text {
+      display: block;
+    }
+    .tooltip-text {
+      display: none;
+      position: absolute;
+      bottom: 120%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e3a5f;
+      border: 1px solid #38bdf8;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 11px;
+      white-space: nowrap;
+      z-index: 100;
+      color: #bae6fd;
+    }
+
+    .tab-btn {
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: #1e3a5f;
+      color: #38bdf8;
+    }
+
+    .fraction-bar {
+      height: 12px;
+      border-radius: 6px;
+      transition: width 0.3s ease;
+    }
+
+    @keyframes flow-anim {
+      0% { stroke-dashoffset: 20; }
+      100% { stroke-dashoffset: 0; }
+    }
+
+    .solvent-flow {
+      animation: flow-anim 0.4s linear infinite;
+      stroke-dasharray: 4 4;
+    }
+
+    .molecule-particle {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    #log-panel {
+      height: 120px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+    }
+
+    .log-entry { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .log-time { color: #475569; }
+    .log-info { color: #38bdf8; }
+    .log-success { color: #4ade80; }
+    .log-warn { color: #fbbf24; }
+
+    /* Rf display */
+    .rf-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+      .main-grid { flex-direction: column; }
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4">
+
+  <!-- HEADER -->
+  <div class="text-center mb-6">
+    <div class="inline-flex items-center gap-3 mb-2">
+      <div style="background:linear-gradient(135deg,#0ea5e9,#6366f1);width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;">
+        <svg width="24" height="24" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M9 3h6v4l3 3v10H6V10l3-3V3z"/>
+          <path d="M6 14h12"/>
+          <circle cx="10" cy="18" r="1" fill="white" stroke="none"/>
+          <circle cx="14" cy="16" r="1" fill="white" stroke="none"/>
+        </svg>
+      </div>
+      <h1 class="text-3xl font-bold" style="background:linear-gradient(135deg,#38bdf8,#818cf8,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+        Sắc Ký Cột – Column Chromatography
+      </h1>
+    </div>
+    <p class="text-slate-400 text-sm max-w-2xl mx-auto">
+      Mô phỏng quá trình tách chất dựa trên tương tác pha tĩnh và pha động • Phân tích hóa học chuyên nghiệp
+    </p>
+  </div>
+
+  <!-- MAIN LAYOUT -->
+  <div class="max-w-7xl mx-auto flex gap-4 flex-wrap main-grid">
+
+    <!-- LEFT: CONTROLS -->
+    <div class="flex flex-col gap-4" style="width:280px;min-width:260px;">
+
+      <!-- Pha động -->
+      <div class="card p-4">
+        <h3 class="text-sm font-semibold text-sky-400 mb-3 flex items-center gap-2">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L8 12H16L12 22"/><path d="M8 12H16"/></svg>
+          Pha Động (Mobile Phase)
+        </h3>
+
+        <label class="text-xs text-slate-400 mb-1 block">Dung môi</label>
+        <select id="solvent-select" class="w-full mb-3 px-3 py-2 rounded-lg text-sm font-medium" style="background:#1e293b;border:1px solid #334155;color:#e2e8f0;">
+          <option value="hexane">Hexane (không phân cực)</option>
+          <option value="dcm">Dichloromethane (DCM)</option>
+          <option value="ethylacetate" selected>Ethyl Acetate</option>
+          <option value="methanol">Methanol (phân cực cao)</option>
+          <option value="water">Nước (phân cực nhất)</option>
+        </select>
+
+        <label class="text-xs text-slate-400 mb-1 block info-tooltip">
+          Tốc độ dòng chảy (Flow Rate)
+          <span class="tooltip-text">Tốc độ pha động qua cột (mL/phút)</span>
+        </label>
+        <div class="flex items-center gap-2 mb-1">
+          <input type="range" id="flow-rate" min="1" max="10" value="3" step="0.5">
+          <span id="flow-rate-val" class="text-sky-400 text-xs font-bold w-12 text-right">3.0</span>
+        </div>
+
+        <label class="text-xs text-slate-400 mb-1 block mt-2">Độ phân cực dung môi</label>
+        <div class="w-full h-4 rounded-full overflow-hidden" style="background:#1e293b;border:1px solid #334155;">
+          <div id="polarity-bar" class="h-full rounded-full transition-all duration-500" style="background:linear-gradient(90deg,#fbbf24,#38bdf8);width:50%;"></div>
+        </div>
+        <div class="flex justify-between text-xs text-slate-500 mt-1">
+          <span>Không phân cực</span><span>Phân cực</span>
+        </div>
+      </div>
+
+      <!-- Pha tĩnh -->
+      <div class="card p-4">
+        <h3 class="text-sm font-semibold text-violet-400 mb-3 flex items-center gap-2">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          Pha Tĩnh (Stationary Phase)
+        </h3>
+
+        <label class="text-xs text-slate-400 mb-1 block">Vật liệu nhồi cột</label>
+        <select id="stationary-select" class="w-full mb-3 px-3 py-2 rounded-lg text-sm font-medium" style="background:#1e293b;border:1px solid #334155;color:#e2e8f0;">
+          <option value="silica" selected>Silica gel (SiO₂) – phân cực</option>
+          <option value="alumina">Alumina (Al₂O₃) – phân cực</option>
+          <option value="c18">C18 RP – không phân cực (HPLC)</option>
+          <option value="cellulose">Cellulose – phân cực vừa</option>
+        </select>
+
+        <label class="text-xs text-slate-400 mb-1 block">Chiều cao cột (cm)</label>
+        <div class="flex items-center gap-2 mb-1">
+          <input type="range" id="col-height" min="10" max="50" value="25" step="5">
+          <span id="col-height-val" class="text-violet-400 text-xs font-bold w-10 text-right">25</span>
+        </div>
+
+        <label class="text-xs text-slate-400 mb-1 block mt-2">Kích thước hạt (μm)</label>
+        <div class="flex items-center gap-2">
+          <input type="range" id="particle-size" min="10" max="100" value="40" step="5">
+          <span id="particle-size-val" class="text-violet-400 text-xs font-bold w-10 text-right">40</span>
+        </div>
+      </div>
+
+      <!-- Chất mẫu -->
+      <div class="card p-4">
+        <h3 class="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          Chất Mẫu (Sample)
+        </h3>
+
+        <div id="compound-list" class="flex flex-col gap-2 mb-3">
+          <!-- compounds rendered by JS -->
+        </div>
+
+        <button id="add-compound-btn" class="w-full text-xs py-2 rounded-lg border border-dashed border-slate-600 text-slate-400 hover:border-emerald-500 hover:text-emerald-400 transition-all">
+          + Thêm chất
+        </button>
+      </div>
+
+      <!-- Speed -->
+      <div class="card p-4">
+        <h3 class="text-sm font-semibold text-amber-400 mb-3">⚙️ Điều Khiển Mô Phỏng</h3>
+        <label class="text-xs text-slate-400 mb-1 block">Tốc độ mô phỏng</label>
+        <div class="flex items-center gap-2 mb-3">
+          <input type="range" id="sim-speed" min="0.5" max="5" value="1.5" step="0.5">
+          <span id="sim-speed-val" class="text-amber-400 text-xs font-bold w-8 text-right">1.5×</span>
+        </div>
+
+        <div class="flex gap-2">
+          <button id="start-btn" class="btn-primary flex-1">▶ Bắt đầu</button>
+          <button id="pause-btn" class="btn-secondary flex-1">⏸ Dừng</button>
+        </div>
+        <button id="reset-btn" class="btn-danger w-full mt-2">↺ Đặt lại</button>
+      </div>
+
+    </div>
+
+    <!-- CENTER: COLUMN VISUALIZATION -->
+    <div class="flex flex-col gap-4 flex-1" style="min-width:300px;">
+
+      <div class="card p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <span class="status-dot" id="status-dot" style="background:#4ade80;"></span>
+            Cột Sắc Ký – Trực Quan Hóa
+          </h3>
+          <div class="flex gap-1" id="tab-btns">
+            <button class="tab-btn active" data-tab="column">Cột</button>
+            <button class="tab-btn" data-tab="3d">3D View</button>
+          </div>
+        </div>
+
+        <!-- COLUMN CANVAS AREA -->
+        <div class="flex gap-6 items-start justify-center">
+
+          <!-- Column -->
+          <div class="flex flex-col items-center gap-2">
+            <div class="text-xs text-slate-500 font-medium">Pha động ↓</div>
+            <!-- Solvent reservoir -->
+            <div id="reservoir" style="width:80px;height:30px;background:linear-gradient(180deg,rgba(56,189,248,0.2),rgba(56,189,248,0.05));border:1px solid #38bdf855;border-radius:4px 4px 0 0;position:relative;overflow:hidden;">
+              <div id="reservoir-fill" style="position:absolute;bottom:0;left:0;right:0;height:80%;background:linear-gradient(180deg,rgba(56,189,248,0.3),rgba(56,189,248,0.1));transition:height 0.5s;"></div>
+            </div>
+            <!-- Column glass body -->
+            <div style="position:relative;">
+              <canvas id="chromatography-canvas" width="120" height="480"></canvas>
+              <!-- Molecule overlay -->
+              <div id="molecule-overlay" style="position:absolute;top:0;left:0;width:120px;height:480px;pointer-events:none;overflow:hidden;"></div>
+            </div>
+            <!-- Outlet / collector -->
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+              <div style="width:4px;height:20px;background:linear-gradient(180deg,#475569,#64748b);border-radius:2px;"></div>
+              <div id="outlet-drop" style="width:8px;height:8px;border-radius:50% 50% 50% 50%;background:#38bdf8;opacity:0;transition:opacity 0.2s;box-shadow:0 0 6px #38bdf8;"></div>
+            </div>
+            <div class="text-xs text-slate-500 font-medium">Đầu ra (Outlet)</div>
+          </div>
+
+          <!-- Right panel: legend + stats -->
+          <div class="flex flex-col gap-3" style="min-width:200px;">
+
+            <!-- Compound legend -->
+            <div class="p-3 rounded-xl" style="background:#0f172a;border:1px solid #1e293b;">
+              <div class="text-xs font-semibold text-slate-400 mb-2">Chú thích chất</div>
+              <div id="legend-list" class="flex flex-col gap-2">
+                <!-- JS -->
+              </div>
+            </div>
+
+            <!-- Rf Values -->
+            <div class="p-3 rounded-xl" style="background:#0f172a;border:1px solid #1e293b;">
+              <div class="text-xs font-semibold text-slate-400 mb-2">Hệ số lưu giữ (Rf)</div>
+              <div id="rf-list" class="flex flex-col gap-2">
+                <!-- JS -->
+              </div>
+            </div>
+
+            <!-- Real-time position -->
+            <div class="p-3 rounded-xl" style="background:#0f172a;border:1px solid #1e293b;">
+              <div class="text-xs font-semibold text-slate-400 mb-2">Vị trí trong cột (%)</div>
+              <div id="position-list" class="flex flex-col gap-3">
+                <!-- JS -->
+              </div>
+            </div>
+
+            <!-- Elution status -->
+            <div class="p-3 rounded-xl" style="background:#0f172a;border:1px solid #1e293b;">
+              <div class="text-xs font-semibold text-slate-400 mb-2">Trạng thái rửa giải</div>
+              <div id="elution-status" class="flex flex-col gap-2 text-xs">
+                <!-- JS -->
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- DETECTOR / CHROMATOGRAM -->
+      <div class="card p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white">📊 Sắc Đồ – Chromatogram (UV Detector)</h3>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-500">Thể tích rửa giải (mL)</span>
+            <button id="export-btn" class="text-xs px-3 py-1 rounded-lg" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;cursor:pointer;">↓ Xuất dữ liệu</button>
+          </div>
+        </div>
+        <canvas id="detector-canvas" width="680" height="160" style="width:100%;"></canvas>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: INFO PANEL -->
+    <div class="flex flex-col gap-4" style="width:240px;min-width:220px;">
+
+      <!-- Theory -->
+      <div class="card p-4">
+        <h3 class="text-sm font-semibold text-rose-400 mb-3">📚 Lý Thuyết</h3>
+        <div id="theory-panel" class="text-xs text-slate-400 leading-relaxed space-y-2">
+          <p>Sắc ký cột tách chất dựa trên <span class="text-sky-300">cân bằng phân bố</span> giữa pha tĩnh và pha động.</p>
+          <p><span class="text-emerald-300">Hệ số phân bố K</span> = Cs/Cm xác định tốc độ di chuyển của mỗi chất.</p>
+          <p>Chất có <span class="text-rose-300">K lớn</span> (hấp phụ mạnh trên pha tĩnh) → di chuyển chậm hơn.</p>
+          <p>Chất có <span class="text-amber-300">K nhỏ</span> (hòa tan tốt vào pha động) → ra trước.</p>
+        </div>
+
+        <!-- Polarity scale -->
+        <div class="mt-3 pt-3" style="border-top:1px solid #1e293b;">
+          <div class="text-xs font-semibold text-slate-400 mb-2">Thang độ phân cực dung môi</div>
+          <div class="space-y-1 text-xs">
+            <div class="flex justify-between"><span class="text-yellow-300">Hexane</span><span class="text-slate-500">0.1</span></div>
+            <div class="flex justify-between"><span class="text-orange-300">DCM</span><span class="text-slate-500">3.1</span></div>
+            <div class="flex justify-between"><span class="text-sky-300">EtOAc</span><span class="text-slate-500">4.4</span></div>
+            <div class="flex justify-between"><span class="text-blue-300">MeOH</span><span class="text-slate-500">6.6</span></div>
+            <div class="flex justify-between"><span class="text-violet-300">Nước</span><span class="text-slate-500">9.0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fractions collected -->
+      <div class="card p-4">
+        <h3 class="text-sm font-semibold text-teal-400 mb-3">🧪 Phân Đoạn Thu Được</h3>
+        <div id="fraction-collector" class="flex flex-col gap-2">
+          <p class="text-xs text-slate-500">Chưa có phân đoạn nào được thu...</p>
+        </div>
+      </div>
+
+      <!-- Separation efficiency -->
+      <div class="card p-4">
+        <h3 class="text-sm font-semibold text-pink-400 mb-3">📈 Hiệu Quả Tách</h3>
+        <div id="sep-efficiency" class="space-y-3">
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-400">Độ phân giải (Rs)</span>
+              <span id="rs-val" class="text-pink-400 font-bold">--</span>
+            </div>
+            <div class="w-full h-2 rounded-full" style="background:#1e293b;">
+              <div id="rs-bar" class="h-full rounded-full transition-all" style="background:linear-gradient(90deg,#f43f5e,#fb923c);width:0%;"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-400">Số đĩa lý thuyết (N)</span>
+              <span id="n-plates-val" class="text-pink-400 font-bold">--</span>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-400">Hiệu suất thu hồi</span>
+              <span id="recovery-val" class="text-emerald-400 font-bold">--</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Log -->
+      <div class="card p-4">
+        <h3 class="text-sm font-semibold text-slate-400 mb-2">📋 Nhật Ký Quá Trình</h3>
+        <div id="log-panel">
+          <div class="log-entry"><span class="log-time">[00:00] </span><span class="log-info">Hệ thống sẵn sàng. Nhấn ▶ để bắt đầu.</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FORMULA PANEL -->
+  <div class="max-w-7xl mx-auto mt-4">
+    <div class="card p-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+        <div class="p-3 rounded-xl" style="background:#0f172a;">
+          <div class="text-xs text-slate-500 mb-1">Hệ số lưu giữ</div>
+          <div class="font-mono text-sm text-sky-400">k = (tᵣ - t₀) / t₀</div>
+        </div>
+        <div class="p-3 rounded-xl" style="background:#0f172a;">
+          <div class="text-xs text-slate-500 mb-1">Độ phân giải</div>
+          <div class="font-mono text-sm text-violet-400">Rs = 2ΔtR / (w₁+w₂)</div>
+        </div>
+        <div class="p-3 rounded-xl" style="background:#0f172a;">
+          <div class="text-xs text-slate-500 mb-1">Số đĩa lý thuyết</div>
+          <div class="font-mono text-sm text-emerald-400">N = 16(tR/w)²</div>
+        </div>
+        <div class="p-3 rounded-xl" style="background:#0f172a;">
+          <div class="text-xs text-slate-500 mb-1">Phân bố van Deemter</div>
+          <div class="font-mono text-sm text-amber-400">H = A + B/u + Cu</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ==========================================
+//   COLUMN CHROMATOGRAPHY SIMULATION ENGINE
+// ==========================================
+
+const SOLVENTS = {
+  hexane:      { name: 'Hexane',           polarity: 0.06, color: '#fde68a', eluent: 0.1 },
+  dcm:         { name: 'DCM',              polarity: 0.35, color: '#fed7aa', eluent: 3.1 },
+  ethylacetate:{ name: 'Ethyl Acetate',    polarity: 0.55, color: '#bae6fd', eluent: 4.4 },
+  methanol:    { name: 'Methanol',         polarity: 0.80, color: '#c4b5fd', eluent: 6.6 },
+  water:       { name: 'Water',            polarity: 1.00, color: '#a5f3fc', eluent: 9.0 }
+};
+
+const STATIONARY = {
+  silica:    { name: 'Silica gel',  polarity: 0.85, color: '#f0e6cc' },
+  alumina:   { name: 'Alumina',    polarity: 0.90, color: '#d4e4bc' },
+  c18:       { name: 'C18 RP',    polarity: 0.10, color: '#c8d8e8' },
+  cellulose: { name: 'Cellulose', polarity: 0.60, color: '#e8d5b0' }
+};
+
+// Default compounds
+let compounds = [
+  { id: 1, name: 'Chất A (Kaempferol)',  color: '#f87171', polarity: 0.30, amount: 1.0, eluted: false, elutedAt: null, position: 0 },
+  { id: 2, name: 'Chất B (Quercetin)',   color: '#fbbf24', polarity: 0.55, amount: 0.8, eluted: false, elutedAt: null, position: 0 },
+  { id: 3, name: 'Chất C (Rutin)',       color: '#4ade80', polarity: 0.75, amount: 0.7, eluted: false, elutedAt: null, position: 0 },
+  { id: 4, name: 'Chất D (Chlorophyll)', color: '#818cf8', polarity: 0.20, amount: 0.6, eluted: false, elutedAt: null, position: 0 }
+];
+
+let simState = {
+  running: false,
+  time: 0,
+  volume: 0,
+  flowRate: 3.0,
+  simSpeed: 1.5,
+  solventKey: 'ethylacetate',
+  stationaryKey: 'silica',
+  colHeight: 25,
+  particleSize: 40,
+  fractions: [],
+  chromatogramData: [],
+  elutionOrder: [],
+  nextCompoundId: 5,
+  lastTimestamp: null,
+  animFrame: null,
+  particlePool: [],
+  dropPhase: 0
+};
+
+// Canvas references
+const canvas = document.getElementById('chromatography-canvas');
+const ctx = canvas.getContext('2d');
+const detCanvas = document.getElementById('detector-canvas');
+const detCtx = detCanvas.getContext('2d');
+
+// ---- Utility ----
+function lerp(a,b,t){ return a+(b-a)*t; }
+function clamp(v,min,max){ return Math.min(Math.max(v,min),max); }
+function logMsg(msg, type='info'){
+  const panel = document.getElementById('log-panel');
+  const t = simState.time;
+  const min = String(Math.floor(t/60)).padStart(2,'0');
+  const sec = String(Math.floor(t%60)).padStart(2,'0');
+  const d = document.createElement('div');
+  d.className='log-entry';
+  d.innerHTML=`<span class="log-time">[${min}:${sec}] </span><span class="log-${type}">${msg}</span>`;
+  panel.prepend(d);
+  if(panel.children.length>40) panel.lastChild.remove();
+}
+
+// ---- Compound velocity calculation ----
+function getVelocity(compound) {
+  const solvent = SOLVENTS[simState.solventKey];
+  const stat    = STATIONARY[simState.stationaryKey];
+
+  // Partition coefficient K based on polarity match
+  // On normal phase (polar stationary): polar compounds move slower
+  // On reverse phase (C18): non-polar compounds move slower
+  const isReverse = simState.stationaryKey === 'c18';
+
+  let polarityDiff;
+  if(isReverse) {
+    // RP: compounds similar to stationary (non-polar) elute last
+    polarityDiff = (1 - compound.polarity) - (1 - solvent.polarity);
+  } else {
+    // NP: compounds similar to stationary (polar) elute last
+    polarityDiff = compound.polarity - solvent.polarity;
+  }
+
+  // K = partition coefficient
+  const K = Math.exp(clamp(polarityDiff * 4, -4, 4));
+
+  // Velocity = u / (1 + k') where k' = K * phase ratio
+  const phaseRatio = 2.5 + (simState.colHeight - 10) / 10;
+  const kPrime = K * phaseRatio;
+  const velocity = simState.flowRate / (1 + kPrime);
+
+  // Particle size effect (smaller = better separation, slower)
+  const psEffect = 1 - (simState.particleSize - 10) / 120;
+  return velocity * psEffect * 0.5;
+}
+
+// ---- Rf value ----
+function getRf(compound) {
+  const v = getVelocity(compound);
+  const maxV = simState.flowRate * 0.5;
+  return clamp(v / maxV, 0.02, 0.98);
+}
+
+// ---- Compute K value ----
+function getK(compound) {
+  const rf = getRf(compound);
+  return rf > 0 ? (1/rf - 1) : 99;
+}
+
+// ============================
+//   RENDER COLUMN (Canvas)
+// ============================
+function renderColumn() {
+  const W = 120, H = 480;
+  ctx.clearRect(0, 0, W, H);
+
+  const solvent = SOLVENTS[simState.solventKey];
+  const stat    = STATIONARY[simState.stationaryKey];
+
+  const COL_X = 20, COL_W = 80;
+  const TOP_Y = 20, BOT_Y = 440;
+  const COL_H = BOT_Y - TOP_Y;
+
+  // Column glass border (gradient)
+  const glassGrad = ctx.createLinearGradient(COL_X, 0, COL_X+COL_W, 0);
+  glassGrad.addColorStop(0, 'rgba(148,163,184,0.6)');
+  glassGrad.addColorStop(0.15,'rgba(255,255,255,0.08)');
+  glassGrad.addColorStop(0.85,'rgba(255,255,255,0.04)');
+  glassGrad.addColorStop(1, 'rgba(148,163,184,0.5)');
+
+  // Draw stationary phase (packing material)
+  const packGrad = ctx.createLinearGradient(0, TOP_Y, 0, BOT_Y);
+  const baseColor = stat.color;
+  packGrad.addColorStop(0,   hexToRgba(baseColor, 0.9));
+  packGrad.addColorStop(0.5, hexToRgba(baseColor, 0.75));
+  packGrad.addColorStop(1,   hexToRgba(baseColor, 0.85));
+  ctx.fillStyle = packGrad;
+  ctx.fillRect(COL_X+3, TOP_Y, COL_W-6, COL_H);
+
+  // Draw silica particles texture
+  drawParticleTexture(COL_X+3, TOP_Y, COL_W-6, COL_H, stat);
+
+  // Draw solvent front
+  if(simState.running || simState.time > 0) {
+    const frontY = TOP_Y + COL_H * 0.05;
+    const solGrad = ctx.createLinearGradient(0, frontY, 0, TOP_Y+10);
+    solGrad.addColorStop(0, hexToRgba(solvent.color, 0.5));
+    solGrad.addColorStop(1, hexToRgba(solvent.color, 0.05));
+    ctx.fillStyle = solGrad;
+    ctx.fillRect(COL_X+3, TOP_Y, COL_W-6, 18);
+
+    // Animated solvent flow lines
+    const t = Date.now()/400;
+    for(let i=0; i<5; i++){
+      const fy = TOP_Y + 5 + ((t*8 + i*12) % COL_H);
+      ctx.strokeStyle = hexToRgba(solvent.color, 0.25);
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3,5]);
+      ctx.beginPath();
+      ctx.moveTo(COL_X+10, fy);
+      ctx.lineTo(COL_X+COL_W-10, fy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // Draw compound bands
+  compounds.forEach(comp => {
+    if(comp.eluted) return;
+    const pos = comp.position; // 0=top, 1=bottom
+    const bandY = TOP_Y + pos * COL_H;
+    const bandwidth = clamp(12 - simState.time * 0.01, 5, 15);
+
+    // Gaussian band shape
+    for(let dy = -bandwidth*2; dy <= bandwidth*2; dy++) {
+      const y = bandY + dy;
+      if(y < TOP_Y || y > BOT_Y) continue;
+      const gauss = Math.exp(-(dy*dy)/(2*bandwidth*bandwidth));
+      const alpha = gauss * 0.85 * comp.amount;
+      ctx.fillStyle = hexToRgba(comp.color, alpha);
+      ctx.fillRect(COL_X+3, y, COL_W-6, 1.5);
+    }
+
+    // Band center line
+    if(bandY >= TOP_Y && bandY <= BOT_Y) {
+      ctx.strokeStyle = hexToRgba(comp.color, 0.9);
+      ctx.lineWidth = 2;
+      ctx.shadowColor = comp.color;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(COL_X+3, bandY);
+      ctx.lineTo(COL_X+COL_W-3, bandY);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Label on the side
+      if(pos > 0.02 && pos < 0.98) {
+        ctx.font = '9px Inter';
+        ctx.fillStyle = comp.color;
+        ctx.fillText(comp.name.split(' ')[1] || comp.name, COL_X+COL_W+2, bandY+3);
+      }
+    }
+  });
+
+  // Glass walls
+  ctx.strokeStyle = 'rgba(148,163,184,0.55)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(COL_X, TOP_Y, COL_W, COL_H);
+
+  // Glass shine left
+  const shineGrad = ctx.createLinearGradient(COL_X, 0, COL_X+12, 0);
+  shineGrad.addColorStop(0, 'rgba(255,255,255,0.22)');
+  shineGrad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = shineGrad;
+  ctx.fillRect(COL_X, TOP_Y, 10, COL_H);
+
+  // Column top cap
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.fillRect(COL_X-4, TOP_Y-8, COL_W+8, 8);
+  // Column bottom narrowing
+  ctx.beginPath();
+  ctx.moveTo(COL_X, BOT_Y);
+  ctx.lineTo(COL_X+COL_W, BOT_Y);
+  ctx.lineTo(COL_X+COL_W/2+6, BOT_Y+28);
+  ctx.lineTo(COL_X+COL_W/2-6, BOT_Y+28);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(100,116,139,0.5)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(148,163,184,0.55)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Ruler markings
+  ctx.font = '8px JetBrains Mono';
+  ctx.fillStyle = 'rgba(148,163,184,0.6)';
+  for(let i=0; i<=5; i++){
+    const y = TOP_Y + (COL_H/5)*i;
+    ctx.fillRect(COL_X-10, y, 8, 1);
+    ctx.fillText(`${Math.round(i*simState.colHeight/5)}`, COL_X-22, y+3);
+  }
+}
+
+function drawParticleTexture(x, y, w, h, stat) {
+  const size = clamp(simState.particleSize / 10, 2, 6);
+  const alpha = 0.15;
+  ctx.fillStyle = 'rgba(0,0,0,'+alpha+')';
+
+  for(let py=y+size; py<y+h-size; py+=size*2.2){
+    for(let px=x+size; px<x+w-size; px+=size*2.2){
+      const jx = (Math.sin(px*17+py*13)*0.5+0.5)*size*0.8;
+      const jy = (Math.cos(px*11+py*19)*0.5+0.5)*size*0.8;
+      ctx.beginPath();
+      ctx.arc(px+jx, py+jy, size*0.6, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+}
+
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ============================
+//   RENDER CHROMATOGRAM
+// ============================
+function renderChromatogram() {
+  const W = detCanvas.width, H = detCanvas.height;
+  detCtx.clearRect(0,0,W,H);
+
+  // Background
+  detCtx.fillStyle = '#0a0f1e';
+  detCtx.fillRect(0,0,W,H);
+
+  // Grid
+  detCtx.strokeStyle = 'rgba(51,65,85,0.5)';
+  detCtx.lineWidth = 0.5;
+  for(let i=0;i<=10;i++){
+    const x = 50 + (W-70)*i/10;
+    detCtx.beginPath(); detCtx.moveTo(x,10); detCtx.lineTo(x,H-30); detCtx.stroke();
+    detCtx.fillStyle='rgba(100,116,139,0.7)';
+    detCtx.font='9px JetBrains Mono';
+    detCtx.fillText((i*2).toFixed(0)+'mL', x-8, H-15);
+  }
+  for(let i=0;i<=4;i++){
+    const y = 10 + (H-40)*i/4;
+    detCtx.beginPath(); detCtx.moveTo(50,y); detCtx.lineTo(W-10,y); detCtx.stroke();
+  }
+
+  // Axis labels
+  detCtx.fillStyle='rgba(148,163,184,0.8)';
+  detCtx.font='10px Inter';
+  detCtx.fillText('Abs (UV)', 4, 90);
+  detCtx.fillText('Thể tích rửa giải (mL) →', W/2-60, H-3);
+
+  // Draw chromatogram peaks for eluted compounds
+  const maxVol = 20;
+  compounds.forEach(comp => {
+    if(!comp.elutedAt) return;
+
+    const peakVol = comp.elutedAt;
+    const width = 0.6 + simState.particleSize * 0.005;
+    const height = comp.amount * 0.85;
+
+    const peakColor = comp.color;
+    detCtx.strokeStyle = peakColor;
+    detCtx.lineWidth = 2;
+    detCtx.shadowColor = peakColor;
+    detCtx.shadowBlur = 6;
+
+    detCtx.beginPath();
+    let first = true;
+    for(let vx=Math.max(0,peakVol-width*4); vx<=Math.min(maxVol,peakVol+width*4); vx+=0.05){
+      const gauss = height * Math.exp(-Math.pow(vx-peakVol,2)/(2*width*width));
+      const px = 50 + (vx/maxVol)*(W-60);
+      const py = (H-30) - gauss*(H-40);
+      if(first){ detCtx.moveTo(px,py); first=false; }
+      else detCtx.lineTo(px,py);
+    }
+    detCtx.stroke();
+    detCtx.shadowBlur = 0;
+
+    // Fill under peak
+    detCtx.save();
+    detCtx.beginPath();
+    let first2 = true;
+    for(let vx=Math.max(0,peakVol-width*4); vx<=Math.min(maxVol,peakVol+width*4); vx+=0.1){
+      const gauss = height * Math.exp(-Math.pow(vx-peakVol,2)/(2*width*width));
+      const px = 50 + (vx/maxVol)*(W-60);
+      const py = (H-30) - gauss*(H-40);
+      if(first2){ detCtx.moveTo(px, H-30); detCtx.lineTo(px,py); first2=false; }
+      else detCtx.lineTo(px,py);
+    }
+    const lastX2 = 50 + (Math.min(maxVol,peakVol+width*4)/maxVol)*(W-60);
+    detCtx.lineTo(lastX2, H-30);
+    detCtx.closePath();
+    const fillGrad = detCtx.createLinearGradient(0, 10, 0, H-30);
+    fillGrad.addColorStop(0, hexToRgba(comp.color, 0.35));
+    fillGrad.addColorStop(1, hexToRgba(comp.color, 0.03));
+    detCtx.fillStyle = fillGrad;
+    detCtx.fill();
+    detCtx.restore();
+
+    // Peak label
+    const pxLabel = 50 + (peakVol/maxVol)*(W-60);
+    detCtx.font = 'bold 9px Inter';
+    detCtx.fillStyle = comp.color;
+    detCtx.fillText(comp.name.split(' ')[1] || comp.name, pxLabel-10, H-32 - height*(H-40));
+  });
+
+  // Current volume cursor
+  if(simState.running || simState.time > 0) {
+    const curX = 50 + (simState.volume/maxVol)*(W-60);
+    if(curX < W-10) {
+      detCtx.strokeStyle = 'rgba(148,163,184,0.5)';
+      detCtx.lineWidth = 1;
+      detCtx.setLineDash([4,4]);
+      detCtx.beginPath();
+      detCtx.moveTo(curX, 10);
+      detCtx.lineTo(curX, H-30);
+      detCtx.stroke();
+      detCtx.setLineDash([]);
+    }
+  }
+
+  // Baseline
+  detCtx.strokeStyle='rgba(100,116,139,0.8)';
+  detCtx.lineWidth=1;
+  detCtx.beginPath();
+  detCtx.moveTo(50,H-30); detCtx.lineTo(W-10,H-30); detCtx.stroke();
+  detCtx.beginPath();
+  detCtx.moveTo(50,10); detCtx.lineTo(50,H-30); detCtx.stroke();
+}
+
+// ============================
+//   UPDATE SIMULATION
+// ============================
+function updateSim(dt) {
+  if(!simState.running) return;
+
+  const dtSeconds = dt * simState.simSpeed;
+  simState.time += dtSeconds;
+  simState.volume += simState.flowRate * dtSeconds / 60;
+
+  compounds.forEach(comp => {
+    if(comp.eluted) return;
+    const v = getVelocity(comp);
+    comp.position += v * dtSeconds / 100;
+
+    if(comp.position >= 1.0) {
+      comp.position = 1.0;
+      comp.eluted = true;
+      comp.elutedAt = simState.volume;
+      simState.fractions.push({ compound: comp, volume: simState.volume });
+      simState.elutionOrder.push(comp.id);
+      updateFractionCollector();
+      logMsg(`✓ ${comp.name} rửa giải xong tại V = ${simState.volume.toFixed(2)} mL`, 'success');
+      if(compounds.every(c=>c.eluted)) {
+        simState.running = false;
+        document.getElementById('status-dot').style.background='#fbbf24';
+        logMsg('Hoàn tất quá trình sắc ký!','warn');
+        computeSeparationEfficiency();
+      }
+    }
+  });
+
+  // Outlet drop animation
+  const anyAtBottom = compounds.some(c=>!c.eluted && c.position > 0.92);
+  document.getElementById('outlet-drop').style.opacity = anyAtBottom ? '1':'0';
+}
+
+// ============================
+//   RENDER SIDEBAR PANELS
+// ============================
+function renderSidebarPanels() {
+  // Legend
+  const legend = document.getElementById('legend-list');
+  legend.innerHTML = compounds.map(c => `
+    <div class="flex items-center gap-2">
+      <div style="width:12px;height:12px;border-radius:50%;background:${c.color};box-shadow:0 0 6px ${c.color}88;flex-shrink:0;"></div>
+      <span class="text-xs text-slate-300">${c.name}</span>
+    </div>
+  `).join('');
+
+  // Rf values
+  const rfList = document.getElementById('rf-list');
+  rfList.innerHTML = compounds.map(c => {
+    const rf = getRf(c).toFixed(3);
+    const kv = getK(c).toFixed(2);
+    return `
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div style="width:8px;height:8px;border-radius:50%;background:${c.color};"></div>
+          <span class="text-xs text-slate-400">${c.name.split(' ')[1] || c.name}</span>
+        </div>
+        <div class="text-right">
+          <span class="rf-badge" style="color:${c.color}">Rf=${rf}</span>
+          <div class="text-xs text-slate-500">k'=${kv}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Position progress
+  const posList = document.getElementById('position-list');
+  posList.innerHTML = compounds.map(c => {
+    const pct = Math.round(c.position * 100);
+    return `
+      <div>
+        <div class="flex justify-between mb-1">
+          <div class="flex items-center gap-1">
+            <div style="width:8px;height:8px;border-radius:50%;background:${c.color};"></div>
+            <span class="text-xs text-slate-400">${c.name.split(' ')[1]||c.name}</span>
+          </div>
+          <span class="text-xs font-bold" style="color:${c.color}">${pct}%</span>
+        </div>
+        <div class="w-full h-2 rounded-full overflow-hidden" style="background:#1e293b;">
+          <div class="h-full rounded-full transition-all duration-200"
+            style="width:${pct}%;background:${c.color};box-shadow:0 0 6px ${c.color}88;"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Elution status
+  const elStatus = document.getElementById('elution-status');
+  elStatus.innerHTML = compounds.map(c => {
+    const st = c.eluted
+      ? `<span style="color:#4ade80">✓ Rửa giải xong (${c.elutedAt.toFixed(2)} mL)</span>`
+      : c.position > 0.05
+        ? `<span style="color:#fbbf24">↓ Đang di chuyển...</span>`
+        : `<span style="color:#475569">○ Chờ rửa giải</span>`;
+    return `
+      <div class="flex items-center gap-2">
+        <div style="width:6px;height:6px;border-radius:50%;background:${c.color};flex-shrink:0;"></div>
+        <span class="text-slate-500">${c.name.split(' ')[1]||c.name}:</span> ${st}
+      </div>`;
+  }).join('');
+}
+
+function updateFractionCollector() {
+  const fc = document.getElementById('fraction-collector');
+  fc.innerHTML = simState.fractions.map((f,i) => `
+    <div class="flex items-center gap-2 p-2 rounded-lg" style="background:#0f172a;border:1px solid ${f.compound.color}33;">
+      <div style="width:20px;height:28px;border-radius:2px 2px 4px 4px;background:${f.compound.color}33;border:1px solid ${f.compound.color};position:relative;overflow:hidden;">
+        <div style="position:absolute;bottom:0;left:0;right:0;height:60%;background:${f.compound.color}66;border-radius:0 0 3px 3px;"></div>
+      </div>
+      <div>
+        <div class="text-xs font-semibold" style="color:${f.compound.color}">#${i+1} ${f.compound.name.split(' ')[1]||f.compound.name}</div>
+        <div class="text-xs text-slate-500">Ve = ${f.volume.toFixed(2)} mL</div>
+      </div>
+    </div>
+  `).join('');
+  if(simState.fractions.length === 0) {
+    fc.innerHTML = '<p class="text-xs text-slate-500">Chưa có phân đoạn nào được thu...</p>';
+  }
+}
+
+function computeSeparationEfficiency() {
+  if(simState.fractions.length < 2) {
+    document.getElementById('rs-val').textContent = 'N/A';
+    return;
+  }
+  const sorted = [...simState.fractions].sort((a,b)=>a.volume-b.volume);
+  // Rs between adjacent peaks
+  const w = 0.6 + simState.particleSize * 0.005;
+  const rsVals = [];
+  for(let i=1;i<sorted.length;i++){
+    const dV = sorted[i].volume - sorted[i-1].volume;
+    const rs = dV / (2*(w + w));
+    rsVals.push(rs);
+  }
+  const avgRs = rsVals.reduce((a,b)=>a+b,0)/rsVals.length;
+  document.getElementById('rs-val').textContent = avgRs.toFixed(2);
+  document.getElementById('rs-bar').style.width = clamp(avgRs/3*100,0,100)+'%';
+
+  // N plates (approx)
+  const avgVe = sorted.reduce((a,b)=>a+b.volume,0)/sorted.length;
+  const N = Math.round(16*Math.pow(avgVe/w,2));
+  document.getElementById('n-plates-val').textContent = N.toLocaleString();
+  document.getElementById('recovery-val').textContent = clamp(85 + avgRs*3, 0, 99).toFixed(1)+'%';
+}
+
+// ============================
+//   COMPOUND LIST UI
+// ============================
+function renderCompoundList() {
+  const list = document.getElementById('compound-list');
+  list.innerHTML = compounds.map(c => `
+    <div class="flex items-center gap-2 p-2 rounded-lg" style="background:#0f172a;border:1px solid #1e293b;">
+      <div style="width:10px;height:10px;border-radius:50%;background:${c.color};flex-shrink:0;"></div>
+      <div class="flex-1 min-w-0">
+        <div class="text-xs font-medium text-slate-300 truncate">${c.name}</div>
+        <div class="text-xs text-slate-500">Phân cực: ${(c.polarity*100).toFixed(0)}%</div>
+      </div>
+      <input type="range" min="0.05" max="1" step="0.05" value="${c.polarity}"
+        data-id="${c.id}" class="compound-polarity-slider"
+        style="width:50px;height:4px;background:#334155;">
+      <button onclick="removeCompound(${c.id})" class="text-slate-600 hover:text-red-400 text-xs flex-shrink-0" style="font-size:16px;line-height:1;background:none;border:none;cursor:pointer;">×</button>
+    </div>
+  `).join('');
+
+  // Slider events
+  list.querySelectorAll('.compound-polarity-slider').forEach(sl => {
+    sl.addEventListener('input', e => {
+      const id = parseInt(e.target.dataset.id);
+      const c = compounds.find(x=>x.id===id);
+      if(c) {
+        c.polarity = parseFloat(e.target.value);
+        renderCompoundList();
+        renderSidebarPanels();
+      }
+    });
+  });
+}
+
+function removeCompound(id) {
+  if(compounds.length <= 1) return;
+  compounds = compounds.filter(c=>c.id!==id);
+  renderCompoundList();
+  renderSidebarPanels();
+}
+
+const PRESET_COMPOUNDS = [
+  { name: 'Chất E (Caffeic acid)',  color: '#f472b6', polarity: 0.65 },
+  { name: 'Chất F (Luteolin)',      color: '#34d399', polarity: 0.42 },
+  { name: 'Chất G (Apigenin)',      color: '#a78bfa', polarity: 0.35 },
+  { name: 'Chất H (Naringenin)',    color: '#fb923c', polarity: 0.58 },
+];
+let presetIdx = 0;
+document.getElementById('add-compound-btn').addEventListener('click', () => {
+  if(compounds.length >= 6) { logMsg('Tối đa 6 chất trong một lần mô phỏng','warn'); return; }
+  const preset = PRESET_COMPOUNDS[presetIdx % PRESET_COMPOUNDS.length];
+  presetIdx++;
+  compounds.push({
+    id: simState.nextCompoundId++,
+    name: preset.name, color: preset.color,
+    polarity: preset.polarity, amount: 0.7,
+    eluted: false, elutedAt: null, position: 0
+  });
+  renderCompoundList();
+  renderSidebarPanels();
+  logMsg(`Thêm ${preset.name} vào mẫu`, 'info');
+});
+
+// ============================
+//   MAIN ANIMATION LOOP
+// ============================
+function animate(timestamp) {
+  if(!simState.lastTimestamp) simState.lastTimestamp = timestamp;
+  const dt = Math.min((timestamp - simState.lastTimestamp)/1000, 0.1);
+  simState.lastTimestamp = timestamp;
+
+  updateSim(dt);
+  renderColumn();
+  renderChromatogram();
+  renderSidebarPanels();
+
+  simState.animFrame = requestAnimationFrame(animate);
+}
+
+// ============================
+//   CONTROLS
+// ============================
+document.getElementById('start-btn').addEventListener('click', () => {
+  simState.running = true;
+  document.getElementById('status-dot').style.background='#4ade80';
+  if(!simState.animFrame) simState.animFrame = requestAnimationFrame(animate);
+  logMsg('Bắt đầu chạy sắc ký...','info');
+});
+
+document.getElementById('pause-btn').addEventListener('click', () => {
+  simState.running = false;
+  document.getElementById('status-dot').style.background='#fbbf24';
+  logMsg('Tạm dừng.','warn');
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  simState.running = false;
+  simState.time = 0;
+  simState.volume = 0;
+  simState.fractions = [];
+  simState.elutionOrder = [];
+  simState.lastTimestamp = null;
+  compounds.forEach(c => { c.eluted=false; c.elutedAt=null; c.position=0; });
+  updateFractionCollector();
+  document.getElementById('status-dot').style.background='#475569';
+  document.getElementById('rs-val').textContent='--';
+  document.getElementById('n-plates-val').textContent='--';
+  document.getElementById('recovery-val').textContent='--';
+  document.getElementById('rs-bar').style.width='0%';
+  renderColumn(); renderChromatogram(); renderSidebarPanels();
+  logMsg('Đặt lại mô phỏng.','warn');
+});
+
+// Sliders
+function setupSlider(id, valId, unit, decimalPlaces, callback) {
+  const slider = document.getElementById(id);
+  const valEl = document.getElementById(valId);
+  slider.addEventListener('input', () => {
+    const v = parseFloat(slider.value);
+    valEl.textContent = v.toFixed(decimalPlaces) + (unit||'');
+    if(callback) callback(v);
+  });
+}
+
+setupSlider('flow-rate','flow-rate-val','', 1, v => simState.flowRate = v);
+setupSlider('col-height','col-height-val','', 0, v => simState.colHeight = v);
+setupSlider('particle-size','particle-size-val','', 0, v => simState.particleSize = v);
+setupSlider('sim-speed','sim-speed-val','×', 1, v => simState.simSpeed = v);
+
+// Solvent select
+const SOLVENT_POLARITY = { hexane:0.06, dcm:0.35, ethylacetate:0.55, methanol:0.80, water:1.00 };
+document.getElementById('solvent-select').addEventListener('change', e => {
+  simState.solventKey = e.target.value;
+  const pct = SOLVENT_POLARITY[e.target.value]*100;
+  document.getElementById('polarity-bar').style.width = pct+'%';
+  logMsg(`Đổi dung môi → ${SOLVENTS[e.target.value].name}`, 'info');
+  renderSidebarPanels();
+});
+// Init polarity bar
+document.getElementById('polarity-bar').style.width = (SOLVENT_POLARITY['ethylacetate']*100)+'%';
+
+document.getElementById('stationary-select').addEventListener('change', e => {
+  simState.stationaryKey = e.target.value;
+  logMsg(`Đổi pha tĩnh → ${STATIONARY[e.target.value].name}`, 'info');
+  renderSidebarPanels();
+});
+
+// Tab buttons
+document.getElementById('tab-btns').querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+// Export data
+document.getElementById('export-btn').addEventListener('click', () => {
+  let csv = 'Chất,Rf,k_prime,Thể tích rửa giải (mL),Trạng thái\n';
+  compounds.forEach(c => {
+    csv += `${c.name},${getRf(c).toFixed(4)},${getK(c).toFixed(4)},${c.elutedAt?c.elutedAt.toFixed(3):'N/A'},${c.eluted?'Đã rửa giải':'Chưa rửa giải'}\n`;
+  });
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='sac_ky_cot_data.csv'; a.click();
+  logMsg('Xuất dữ liệu CSV thành công','success');
+});
+
+// ============================
+//   INIT
+// ============================
+renderCompoundList();
+renderSidebarPanels();
+renderColumn();
+renderChromatogram();
+updateFractionCollector();
+simState.animFrame = requestAnimationFrame(animate);
+
+logMsg('Khởi động mô phỏng sắc ký cột v2.0','success');
+logMsg('Chọn dung môi và pha tĩnh, sau đó nhấn ▶ Bắt đầu','info');
+</script>
+</body>
+</html>
